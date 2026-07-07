@@ -21,3 +21,14 @@ export const DODOO_CATEGORIES: Category[] = [
 export const CAT_BY_ID: Record<string, Category> = Object.fromEntries(
   DODOO_CATEGORIES.map(c => [c.id, c])
 );
+
+export const CAT_BY_API_KEY: Record<string, Category> = {
+  HEALTH_EXERCISE:   DODOO_CATEGORIES[0],
+  STUDIES_LEARNING:  DODOO_CATEGORIES[1],
+  WORK_CAREER:       DODOO_CATEGORIES[2],
+  HOME_ORGANIZATION: DODOO_CATEGORIES[3],
+  FINANCES:          DODOO_CATEGORIES[4],
+  CREATIVITY:        DODOO_CATEGORIES[5],
+  MENTAL_WELLNESS:   DODOO_CATEGORIES[6],
+  RELATIONSHIPS:     DODOO_CATEGORIES[7],
+};

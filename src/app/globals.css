@@ -15,7 +15,16 @@
 @theme inline {
   --color-background: var(--bg);
   --color-foreground: var(--dark);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-purple: var(--purple);
+  --color-purple-light: var(--purple-light);
+  --color-accent: var(--accent);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-error: #C0392B;
   --font-sans: 'Nunito', sans-serif;
+  --font-fredoka: 'Fredoka', sans-serif;
 }
 
 * {
@@ -39,4 +48,15 @@ input, textarea, button, select {
 ::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: #E8E2F4;
+  border-radius: 6px;
 }

@@ -1,16 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useFormatter } from 'next-intl';
 import { WebLayout } from '@/components/layout/web-layout';
-import { TaskCard } from '@/components/tasks/task-card';
+import { TaskCard, TaskCardSkeleton } from '@/components/tasks/task-card';
 import { WebCreatePanel } from '@/components/tasks/create-panel';
 import { CategoryIcon } from '@/components/ui/icons';
 import { CoinPill } from '@/components/ui/coin-pill';
-import { SAMPLE_TASKS, type Task } from '@/data/tasks';
+import { useAuthStore } from '@/stores/auth-store';
+import { useTasksStore } from '@/stores/tasks-store';
+import { useState } from 'react';
+import type { Task } from '@/lib/api/tasks';
 
-type FilterId = 'today' | 'recurring' | 'in-review' | 'validated' | 'all';
+type FilterId = 'all' | 'active' | 'recurring' | 'in-review' | 'validated';
 
 function WebStreakBanner({ days }: { days: number }) {
   const t = useTranslations('tasks');
@@ -42,36 +45,50 @@ function WebStreakBanner({ days }: { days: number }) {
   );
 }
 
+function applyFilter(tasks: Task[], filter: FilterId): Task[] {
+  if (filter === 'all') return tasks;
+  if (filter === 'active') return tasks.filter(t => t.status === 'ACTIVE' && t.activeInstance?.status === 'ACTIVE');
+  if (filter === 'recurring') return tasks.filter(t => t.type === 'RECURRING');
+  if (filter === 'in-review') return tasks.filter(t => t.activeInstance?.status === 'UNDER_EVALUATION');
+  if (filter === 'validated') return tasks.filter(t => t.activeInstance?.status === 'VALIDATED');
+  return tasks;
+}
+
 export default function TarefasPage() {
   const router = useRouter();
-  const t = useTranslations('tasks');
+  const t      = useTranslations('tasks');
   const format = useFormatter();
-  const [filter, setFilter] = useState<FilterId>('today');
-  const [tasks, setTasks] = useState<Task[]>(SAMPLE_TASKS);
+
+  const [filter,     setFilter]     = useState<FilterId>('all');
   const [showCreate, setShowCreate] = useState(false);
+  const [mounted,    setMounted]    = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const user  = useAuthStore(s => s.user);
+  const token = useAuthStore(s => s.token);
+  const displayUser = mounted ? user : null;
+  const firstName   = displayUser?.name.split(' ')[0] ?? '...';
+
+  const { tasks, isLoading, error, fetchTasks } = useTasksStore();
+
+  useEffect(() => {
+    if (mounted && token) fetchTasks(token);
+  }, [mounted, token, fetchTasks]);
 
   const WEB_FILTERS: { id: FilterId; label: string }[] = [
-    { id: 'today',     label: t('today')     },
+    { id: 'all',       label: t('all')       },
+    { id: 'active',    label: t('active')    },
     { id: 'recurring', label: t('recurring') },
     { id: 'in-review', label: t('inReview')  },
     { id: 'validated', label: t('validated') },
-    { id: 'all',       label: t('all')       },
   ];
 
-  const filtered = tasks.filter(task => {
-    if (filter === 'all') return true;
-    if (filter === 'recurring') return task.type === 'recorrente';
-    if (filter === 'in-review') return task.status === 'em-avaliacao';
-    if (filter === 'validated') return task.status === 'validada';
-    return task.status === 'ativa' || task.status === 'concluida';
-  });
-
-  const completeTask = (id: Task['id']) => setTasks(ts => ts.map(task =>
-    task.id === id ? { ...task, status: task.status === 'ativa' ? 'em-avaliacao' as const : 'ativa' as const, evals: 0, evalsNeeded: 5 } : task
-  ));
+  const filtered = applyFilter(tasks, filter);
 
   const handleNav = (id: string) => {
-    if (id === 'feed') router.push('feed');
+    if (id === 'feed')     router.push('feed');
+    if (id === 'trophy')   router.push('conquistas');
     if (id === 'settings') router.push('configuracoes');
   };
 
@@ -92,12 +109,12 @@ export default function TarefasPage() {
               {dateStr}
             </div>
             <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 30, color: '#1F1530', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-              {t('greeting', { name: 'Lia' })}
+              {t('greeting', { name: firstName })}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
-            <CoinPill amount={240} kind="common" />
-            <CoinPill amount={87} kind="prestige" />
+            <CoinPill amount={displayUser?.commonCoins ?? 0} kind="common" />
+            <CoinPill amount={displayUser?.prestige     ?? 0} kind="prestige" />
           </div>
         </div>
 
@@ -120,13 +137,64 @@ export default function TarefasPage() {
           })}
         </div>
 
-        <div style={{ marginBottom: 14, fontSize: 11.5, fontWeight: 800, color: '#9A8DBA', letterSpacing: 0.5, textTransform: 'uppercase' }}>
-          {t('count', { count: filtered.length })}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 460px))', gap: 12 }}>
-          {filtered.map(task => <TaskCard key={task.id} task={task} onComplete={completeTask} />)}
-        </div>
+        {isLoading ? (
+          <>
+            <div style={{ marginBottom: 14, fontSize: 11.5, fontWeight: 800, color: '#9A8DBA', letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.4 }}>
+              &nbsp;
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 460px))', gap: 12 }}>
+              {Array.from({ length: 4 }).map((_, i) => <TaskCardSkeleton key={i} />)}
+            </div>
+          </>
+        ) : error ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', gap: 14 }}>
+            <CategoryIcon name="alert" size={36} color="#C0392B" />
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#C0392B', textAlign: 'center' }}>{error}</div>
+            <button
+              onClick={() => token && fetchTasks(token)}
+              style={{
+                border: 'none', cursor: 'pointer', padding: '10px 24px', borderRadius: 999,
+                fontWeight: 800, fontSize: 13, background: '#1F1530', color: '#FFD93D',
+                fontFamily: 'Nunito, sans-serif',
+              }}
+            >
+              {t('retry')}
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', gap: 14 }}>
+            <CategoryIcon name="list" size={48} color="#E5DDF3" />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 20, color: '#1F1530' }}>
+                {t('emptyTitle')}
+              </div>
+              <div style={{ fontSize: 14, color: '#9A8DBA', marginTop: 4 }}>
+                {t('emptyDesc')}
+              </div>
+            </div>
+            {filter === 'all' && (
+              <button
+                onClick={() => setShowCreate(true)}
+                style={{
+                  border: 'none', cursor: 'pointer', padding: '10px 24px', borderRadius: 999,
+                  fontWeight: 800, fontSize: 13, background: '#1F1530', color: '#FFD93D',
+                  fontFamily: 'Nunito, sans-serif',
+                }}
+              >
+                {t('createFirst')}
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 14, fontSize: 11.5, fontWeight: 800, color: '#9A8DBA', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+              {t('count', { count: filtered.length })}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 460px))', gap: 12 }}>
+              {filtered.map(task => <TaskCard key={task.id} task={task} />)}
+            </div>
+          </>
+        )}
       </div>
     </WebLayout>
   );

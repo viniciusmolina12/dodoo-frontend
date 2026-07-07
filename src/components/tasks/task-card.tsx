@@ -1,27 +1,30 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { CategoryIcon } from '@/components/ui/icons';
-import { CategoryBadge } from '@/components/ui/icons';
-import { CAT_BY_ID } from '@/data/categories';
-import { DIFF_META, STATUS_META, type Task } from '@/data/tasks';
+import { useTranslations, useFormatter } from 'next-intl';
+import { CategoryIcon, CategoryBadge } from '@/components/ui/icons';
+import { CAT_BY_API_KEY, DODOO_CATEGORIES } from '@/data/categories';
+import type { Task } from '@/lib/api/tasks';
 
-const RECUR_KEY: Record<string, string> = {
-  'diária': 'diaria',
-  'semanal': 'semanal',
-  'mensal': 'mensal',
+const STATUS_META: Record<string, { bg: string; fg: string }> = {
+  ACTIVE:           { bg: '#FFF8E7', fg: '#8B6A14' },
+  EXPIRED:          { bg: '#F0E6E2', fg: '#8B5A3F' },
+  DRAFT:            { bg: '#F4EFFF', fg: '#5B3FA1' },
+  UNDER_EVALUATION: { bg: '#EFE6FF', fg: '#5B3FA1' },
+  VALIDATED:        { bg: '#FFE9A8', fg: '#8B6A14' },
+  COMPLETED:        { bg: '#D4F0D8', fg: '#2F7A3F' },
 };
 
-export function DiffDots({ diff }: { diff: string }) {
+const DIFF_DOTS: Record<string, number> = { EASY: 1, MEDIUM: 2, HARD: 3 };
+
+function DiffDots({ diff }: { diff: string }) {
   const t = useTranslations('diff');
-  const d = DIFF_META[diff as keyof typeof DIFF_META];
-  if (!d) return null;
+  const dots = DIFF_DOTS[diff] ?? 1;
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
       {[1, 2, 3].map(i => (
         <span key={i} style={{
           width: 6, height: 6, borderRadius: 3,
-          background: i <= d.dots ? '#5B3FA1' : '#E5DDF3',
+          background: i <= dots ? '#5B3FA1' : '#E5DDF3',
         }} />
       ))}
       <span style={{ fontSize: 12, fontWeight: 700, color: '#5B3FA1', marginLeft: 4 }}>
@@ -31,9 +34,9 @@ export function DiffDots({ diff }: { diff: string }) {
   );
 }
 
-export function StatusPill({ status }: { status: string }) {
+function StatusPill({ status }: { status: string }) {
   const t = useTranslations('status');
-  const m = STATUS_META[status as keyof typeof STATUS_META];
+  const m = STATUS_META[status];
   if (!m) return null;
   return (
     <span style={{
@@ -44,24 +47,33 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
-interface TaskCardProps {
-  task: Task;
-  onComplete?: (id: Task['id']) => void;
-}
-
-export function TaskCard({ task, onComplete }: TaskCardProps) {
+export function TaskCard({ task }: { task: Task }) {
   const t = useTranslations('tasks');
   const tRecur = useTranslations('recur');
-  const cat = CAT_BY_ID[task.cat];
-  const done = task.status === 'concluida' || task.status === 'validada' || task.status === 'em-avaliacao';
-  const checklistDone = task.goal?.kind === 'checklist' ? task.goal.items.filter(Boolean).length : 0;
-  const checklistTotal = task.goal?.kind === 'checklist' ? task.goal.items.length : 0;
+  const fmt = useFormatter();
 
-  const recurLabel = task.recur
-    ? (() => {
-        const key = RECUR_KEY[task.recur];
-        return key ? tRecur(key as Parameters<typeof tRecur>[0]) : task.recur;
-      })()
+  const cat = CAT_BY_API_KEY[task.category] ?? DODOO_CATEGORIES[0];
+
+  const instanceStatus = task.activeInstance?.status;
+  const effectiveStatus =
+    instanceStatus === 'UNDER_EVALUATION' ||
+    instanceStatus === 'VALIDATED' ||
+    instanceStatus === 'COMPLETED'
+      ? instanceStatus
+      : task.status;
+
+  const isDone =
+    effectiveStatus === 'UNDER_EVALUATION' ||
+    effectiveStatus === 'VALIDATED' ||
+    effectiveStatus === 'COMPLETED';
+
+  const checklistTotal = task.goalChecklist?.length ?? 0;
+  const checklistDone = task.activeInstance?.checklistProgress
+    ? Object.values(task.activeInstance.checklistProgress).filter(Boolean).length
+    : 0;
+
+  const deadlineStr = task.deadline
+    ? fmt.dateTime(new Date(task.deadline), { day: 'numeric', month: 'short' })
     : null;
 
   return (
@@ -80,64 +92,71 @@ export function TaskCard({ task, onComplete }: TaskCardProps) {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
           <div style={{
             fontWeight: 800, fontSize: 15, color: '#1F1530',
-            textDecoration: done ? 'line-through' : 'none',
-            opacity: done ? 0.55 : 1, lineHeight: 1.25,
+            textDecoration: isDone ? 'line-through' : 'none',
+            opacity: isDone ? 0.55 : 1, lineHeight: 1.25,
           }}>{task.title}</div>
-          {task.private && <CategoryIcon name="lock" size={14} color="#9A8DBA" />}
+          {task.privacy === 'PRIVATE' && <CategoryIcon name="lock" size={14} color="#9A8DBA" />}
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
-          <StatusPill status={task.status} />
-          {task.type === 'recorrente' && recurLabel && (
+          <StatusPill status={effectiveStatus} />
+          {task.type === 'RECURRING' && task.recurrence && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               fontSize: 11, fontWeight: 800, color: '#5B3FA1',
               background: '#F4EFFF', padding: '3px 8px', borderRadius: 999,
             }}>
               <CategoryIcon name="clock" size={11} color="#5B3FA1" />
-              {recurLabel}
+              {tRecur(task.recurrence as Parameters<typeof tRecur>[0])}
             </span>
           )}
-          {task.goal?.kind === 'checklist' && (
+          {task.goalType === 'CHECKLIST' && checklistTotal > 0 && (
             <span style={{ fontSize: 11, fontWeight: 800, color: '#2F7A3F', background: '#E4F4E7', padding: '3px 8px', borderRadius: 999 }}>
-              {checklistDone}/{checklistTotal}
+              {t('evals', { done: checklistDone, needed: checklistTotal })}
             </span>
           )}
-          {task.status === 'em-avaliacao' && (
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#5B3FA1' }}>
-              {t('evals', { done: task.evals ?? 0, needed: task.evalsNeeded ?? 5 })}
-            </span>
-          )}
-          {task.status === 'validada' && task.prestige && (
+          {effectiveStatus === 'VALIDATED' && (task.activeInstance?.prestigeEarned ?? 0) > 0 && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 800, color: '#8B6A14' }}>
-              +<CategoryIcon name="star" size={11} color="#5B3FA1" />{task.prestige}
+              +<CategoryIcon name="star" size={11} color="#5B3FA1" />{task.activeInstance!.prestigeEarned}
             </span>
           )}
         </div>
 
-        {task.deadline && (
+        {task.declaredDifficulty && (
+          <div style={{ marginTop: 6 }}>
+            <DiffDots diff={task.declaredDifficulty} />
+          </div>
+        )}
+
+        {deadlineStr && (
           <div style={{ marginTop: 8, fontSize: 12, color: '#7A6E94', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <CategoryIcon name="calendar" size={12} color="#7A6E94" />
-            {task.deadline}
+            {deadlineStr}
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      <button
-        onClick={() => onComplete?.(task.id)}
-        aria-label={done ? t('markedDone') : t('markDone')}
-        style={{
-          alignSelf: 'flex-start', marginTop: 2,
-          width: 32, height: 32, borderRadius: 16,
-          border: 'none', cursor: 'pointer', padding: 0,
-          background: done ? '#FFD93D' : 'transparent',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        {done
-          ? <CategoryIcon name="check" size={18} color="#1F1530" />
-          : <div style={{ width: 24, height: 24, borderRadius: 12, border: '2.4px solid #C7BDE6' }} />}
-      </button>
+export function TaskCardSkeleton() {
+  return (
+    <div style={{
+      background: '#FFFFFF', borderRadius: 22,
+      padding: 14, display: 'flex', gap: 12,
+      border: '1.5px solid #F1ECE0',
+      position: 'relative', overflow: 'hidden',
+      minHeight: 90,
+    }}>
+      <div className="skeleton" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 }} />
+      <div className="skeleton" style={{ width: 42, height: 42, borderRadius: 14, flexShrink: 0 }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="skeleton" style={{ height: 16, borderRadius: 6, width: '70%' }} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div className="skeleton" style={{ height: 22, borderRadius: 999, width: 64 }} />
+          <div className="skeleton" style={{ height: 22, borderRadius: 999, width: 48 }} />
+        </div>
+      </div>
     </div>
   );
 }
