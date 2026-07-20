@@ -6,6 +6,10 @@ import { useTranslations } from 'next-intl';
 import { CategoryIcon } from '@/components/ui/icons';
 import { DodooMascot } from '@/components/ui/logo';
 import { AuthInput, SocialButton } from '@/components/ui/auth-input';
+import { login, ApiError } from '@/lib/api/auth';
+import { useAuthStore } from '@/stores/auth-store';
+
+// ─── Brand panel ──────────────────────────────────────────────────────────────
 
 function WebAuthBrand({ mode }: { mode: 'login' | 'signup' }) {
   const t = useTranslations('auth');
@@ -69,14 +73,6 @@ function WebAuthBrand({ mode }: { mode: 'login' | 'signup' }) {
                 <div style={{ fontSize: 13, color: 'rgba(255,248,231,0.78)', fontWeight: 700, lineHeight: 1.4 }}>{t('bonusDesc')}</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-              {[{ n: '12k+', l: t('statUsers') }, { n: '87k', l: t('statTasks') }, { n: '4.8★', l: t('statRating') }].map(s => (
-                <div key={s.n} style={{ flex: 1, background: 'rgba(255,248,231,0.08)', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 20, color: '#FFF8E7' }}>{s.n}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,248,231,0.5)', fontWeight: 800, marginTop: 2 }}>{s.l}</div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
@@ -84,13 +80,48 @@ function WebAuthBrand({ mode }: { mode: 'login' | 'signup' }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function LoginPage() {
-  const router = useRouter();
-  const t = useTranslations('auth');
-  const [email, setEmail] = useState('');
-  const [pass, setPass] = useState('');
-  const [keep, setKeep] = useState(true);
-  const ready = email.length > 3 && pass.length > 3;
+  const router   = useRouter();
+  const t        = useTranslations('auth');
+  const setAuth  = useAuthStore(s => s.setAuth);
+
+  const [loginField,   setLoginField]   = useState('');
+  const [pass,         setPass]         = useState('');
+  const [keep,         setKeep]         = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [unverified,   setUnverified]   = useState(false);
+
+  const ready = loginField.trim().length >= 3 && pass.length >= 3 && !isSubmitting;
+
+  async function handleSubmit() {
+    if (!ready) return;
+    setIsSubmitting(true);
+    setError(null);
+    setUnverified(false);
+
+    try {
+      const { token, user } = await login({ login: loginField.trim(), password: pass });
+      setAuth(token, user);
+      router.push('../tarefas');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 403) {
+          setUnverified(true);
+        } else if (err.status === 401) {
+          setError('E-mail/usuário ou senha incorretos.');
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('Erro de conexão. Verifique sua internet e tente novamente.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <div className="dodoo-app" style={{ width: '100%', height: '100vh', display: 'flex' }}>
@@ -123,8 +154,23 @@ export default function LoginPage() {
             <div style={{ flex: 1, height: 1.5, background: '#F1ECE0' }} />
           </div>
 
-          <AuthInput label={t('emailOrUser')} value={email} onChange={setEmail} icon="user" placeholder="lia.m ou lia@email.com" compact />
-          <AuthInput label={t('password')} value={pass} onChange={setPass} type="password" icon="lock" placeholder="••••••••" compact />
+          <AuthInput
+            label={t('emailOrUser')}
+            value={loginField}
+            onChange={setLoginField}
+            icon="user"
+            placeholder="lia.m ou lia@email.com"
+            compact
+          />
+          <AuthInput
+            label={t('password')}
+            value={pass}
+            onChange={setPass}
+            type="password"
+            icon="lock"
+            placeholder="••••••••"
+            compact
+          />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, marginTop: 4 }}>
             <button onClick={() => setKeep(!keep)} style={{
@@ -147,14 +193,42 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <button disabled={!ready} onClick={() => router.push('../tarefas')} style={{
-            width: '100%', border: 'none', cursor: ready ? 'pointer' : 'not-allowed',
-            padding: '14px 20px', borderRadius: 16,
-            background: ready ? '#FFD93D' : '#F1ECE0',
-            color: ready ? '#1F1530' : '#9A8DBA',
-            fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 17,
-            boxShadow: ready ? '0 6px 18px rgba(255,167,0,0.35), inset 0 -3px 0 rgba(0,0,0,0.08)' : 'none',
-          }}>{t('loginBtn')}</button>
+          {/* Error states */}
+          {error && (
+            <div style={{ background: '#FFF0EE', border: '1px solid #FADBD8', borderRadius: 12, padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#C0392B', marginBottom: 16 }}>
+              {error}
+            </div>
+          )}
+          {unverified && (
+            <div style={{ background: '#FFF8E7', border: '1px solid #F1ECE0', borderRadius: 12, padding: '12px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#7A6E94' }}>
+                E-mail ainda não verificado.
+              </span>
+              <button
+                onClick={() => router.push(`../verify-email?email=${encodeURIComponent(loginField.trim())}`)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 13.5, color: '#5B3FA1', textDecoration: 'underline', textUnderlineOffset: 3, flexShrink: 0 }}
+              >
+                Verificar agora
+              </button>
+            </div>
+          )}
+
+          <button
+            disabled={!ready}
+            onClick={handleSubmit}
+            style={{
+              width: '100%', border: 'none', cursor: ready ? 'pointer' : 'not-allowed',
+              padding: '14px 20px', borderRadius: 16,
+              background: ready ? '#FFD93D' : '#F1ECE0',
+              color: ready ? '#1F1530' : '#9A8DBA',
+              fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 17,
+              opacity: isSubmitting ? 0.7 : 1,
+              boxShadow: ready ? '0 6px 18px rgba(255,167,0,0.35), inset 0 -3px 0 rgba(0,0,0,0.08)' : 'none',
+              transition: 'opacity 0.15s',
+            }}
+          >
+            {isSubmitting ? '...' : t('loginBtn')}
+          </button>
         </div>
       </div>
     </div>

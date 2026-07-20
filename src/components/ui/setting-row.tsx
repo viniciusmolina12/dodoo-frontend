@@ -21,8 +21,8 @@ export function SettingRow({ icon, iconBg, iconFg, title, subtitle, right, chevr
         <CategoryIcon name={icon} size={17} color={iconFg} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13.5, color: '#1F1530' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11.5, color: '#9A8DBA', fontWeight: 700, marginTop: 1 }}>{subtitle}</div>}
+        <div style={{ fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13.5, color: 'var(--dark)' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11.5, color: 'var(--text-faint)', fontWeight: 700, marginTop: 1 }}>{subtitle}</div>}
       </div>
       {right ?? (chevron && <CategoryIcon name="chevron-r" size={16} color="#C4B8D8" />)}
     </>
@@ -31,7 +31,7 @@ export function SettingRow({ icon, iconBg, iconFg, title, subtitle, right, chevr
   const rowStyle: React.CSSProperties = {
     width: '100%',
     padding: '11px 0',
-    borderBottom: last ? 'none' : '1.5px solid #F4F0E5',
+    borderBottom: last ? 'none' : '1.5px solid var(--border)',
     display: 'flex', alignItems: 'center', gap: 12,
   };
 

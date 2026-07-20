@@ -1,23 +1,23 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { CategoryIcon } from '@/components/ui/icons';
-import { CategoryBadge } from '@/components/ui/icons';
-import { CAT_BY_ID } from '@/data/categories';
-import { DIFF_META, STATUS_META, type Task } from '@/data/tasks';
-import type { OtherUser } from '@/data/users';
+import { CategoryIcon, CategoryBadge } from '@/components/ui/icons';
+import { CAT_BY_API_KEY, DODOO_CATEGORIES } from '@/data/categories';
+import type { PublicUserProfile, ProfileTask } from '@/lib/api/users';
 
-const RECUR_KEY: Record<string, string> = {
-  'diária': 'diaria',
-  'semanal': 'semanal',
-  'mensal': 'mensal',
-};
+function usernameColors(username: string): { fg: string; bg: string } {
+  const hue = [...username].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+  return {
+    fg: `hsl(${hue}, 50%, 35%)`,
+    bg: `hsl(${hue}, 60%, 84%)`,
+  };
+}
 
-function StatCell({ value, label, icon, fg }: { value: string | number; label: string; icon: string; fg: string }) {
+function StatCell({ value, label, icon }: { value: string | number; label: string; icon: string }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <CategoryIcon name={icon} size={13} color={fg} />
+        <CategoryIcon name={icon} size={13} color="#FFD93D" />
         <span style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 18, color: '#FFF8E7', lineHeight: 1 }}>{value}</span>
       </div>
       <div style={{ fontSize: 10.5, color: 'rgba(255,248,231,0.6)', fontWeight: 800 }}>{label}</div>
@@ -30,72 +30,46 @@ function Sep() {
 }
 
 interface ViewedProfileCardProps {
-  user: OtherUser;
+  user: PublicUserProfile;
   isFollowing: boolean;
   onToggleFollow: () => void;
 }
 
 export function ViewedProfileCard({ user, isFollowing, onToggleFollow }: ViewedProfileCardProps) {
   const t = useTranslations('profile');
+  const { fg, bg } = usernameColors(user.username);
+
   return (
     <div style={{
-      background: `linear-gradient(135deg, ${user.fg} 0%, ${user.fg}D9 100%)`,
+      background: `linear-gradient(135deg, ${fg} 0%, ${fg}D9 100%)`,
       borderRadius: 24, padding: 18, color: '#FFF8E7',
       position: 'relative', overflow: 'hidden',
-      boxShadow: `0 8px 22px ${user.fg}40`,
+      boxShadow: `0 8px 22px ${fg}40`,
     }}>
-      <div style={{ position: 'absolute', top: -40, right: -30, width: 130, height: 130, borderRadius: 65, background: `${user.color}55` }} />
+      <div style={{ position: 'absolute', top: -40, right: -30, width: 130, height: 130, borderRadius: 65, background: `${bg}55` }} />
       <div style={{ position: 'absolute', bottom: -50, left: -20, width: 110, height: 110, borderRadius: 55, background: 'rgba(255,255,255,0.06)' }} />
 
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <div style={{
             width: 80, height: 80, borderRadius: 40,
-            background: user.color, color: user.fg,
+            background: bg, color: fg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 34,
             border: '4px solid rgba(255,248,231,0.95)',
             boxShadow: `0 4px 12px rgba(0,0,0,0.18), 0 0 0 4px #FFD93D33`,
           }}>{(user.name || '?')[0]?.toUpperCase()}</div>
-          <div style={{
-            position: 'absolute', bottom: -2, right: -4,
-            background: '#1F1530', color: '#FFD93D',
-            padding: '3px 8px', borderRadius: 999,
-            fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 11,
-            border: `2px solid ${user.fg}`,
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-          }}>
-            <CategoryIcon name="star" size={10} color="#FFD93D" />
-            nv {user.level}
-          </div>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 20, lineHeight: 1.1 }}>{user.name}</div>
-          <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 700, marginTop: 2 }}>@{user.handle}</div>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6,
-            padding: '4px 10px', background: 'rgba(255,217,61,0.22)', borderRadius: 999,
-            fontSize: 11, fontWeight: 800, color: '#FFD93D',
-            boxShadow: 'inset 0 0 0 1px rgba(255,217,61,0.3)',
-          }}>
-            <CategoryIcon name="trophy" size={10} color="#FFD93D" />
-            {user.title}
-          </div>
+          <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 700, marginTop: 2 }}>@{user.username}</div>
         </div>
       </div>
 
-      {user.bio && (
-        <div style={{ position: 'relative', marginTop: 12, fontSize: 12.5, lineHeight: 1.4, fontWeight: 700, color: 'rgba(255,248,231,0.92)' }}>
-          {user.bio}
-        </div>
-      )}
-
       <div style={{ position: 'relative', display: 'flex', gap: 0, marginTop: 14, padding: '12px 0 0', borderTop: '1.5px dashed rgba(255,217,61,0.35)' }}>
-        <StatCell value={user.stats.prestige}       label={t('statPrestige')} icon="star"  fg="#FFD93D" />
+        <StatCell value={user.prestige}    label={t('statPrestige')} icon="star"  />
         <Sep />
-        <StatCell value={`${user.stats.streak}d`}   label={t('statStreak')}   icon="flame" fg="#FFD93D" />
-        <Sep />
-        <StatCell value={user.stats.validated}       label={t('statValidated')} icon="check" fg="#FFD93D" />
+        <StatCell value={user.commonCoins} label={t('statCoins')}    icon="coin"  />
       </div>
 
       <div style={{ position: 'relative', display: 'flex', gap: 8, marginTop: 14 }}>
@@ -123,96 +97,52 @@ export function ViewedProfileCard({ user, isFollowing, onToggleFollow }: ViewedP
 }
 
 export const PROFILE_TASK_FILTERS: { id: string }[] = [
-  { id: 'all'          },
-  { id: 'ativa'        },
-  { id: 'em-avaliacao' },
-  { id: 'validada'     },
+  { id: 'all'    },
+  { id: 'ACTIVE' },
+  { id: 'EXPIRED'},
 ];
 
-function DiffDots({ diff }: { diff: string }) {
-  const t = useTranslations('diff');
-  const d = DIFF_META[diff as keyof typeof DIFF_META];
-  if (!d) return null;
-  return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      {[1, 2, 3].map(i => (
-        <span key={i} style={{ width: 6, height: 6, borderRadius: 3, background: i <= d.dots ? '#5B3FA1' : '#E5DDF3' }} />
-      ))}
-      <span style={{ fontSize: 12, fontWeight: 700, color: '#5B3FA1', marginLeft: 4 }}>
-        {t(diff as Parameters<typeof t>[0])}
-      </span>
-    </div>
-  );
-}
+const TASK_STATUS_META: Record<string, { bg: string; fg: string; labelKey: string }> = {
+  ACTIVE:  { bg: '#FFF8E7', fg: '#8B6A14', labelKey: 'ACTIVE'  },
+  EXPIRED: { bg: '#F0E6E2', fg: '#8B5A3F', labelKey: 'EXPIRED' },
+};
 
-function StatusPill({ status }: { status: string }) {
-  const t = useTranslations('status');
-  const m = STATUS_META[status as keyof typeof STATUS_META];
-  if (!m) return null;
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: 999, background: m.bg, color: m.fg, fontSize: 11, fontWeight: 800 }}>
-      {t(status as Parameters<typeof t>[0])}
-    </span>
-  );
-}
-
-export function PublicTaskCard({ task }: { task: Task }) {
-  const tRecur = useTranslations('recur');
-  const cat = CAT_BY_ID[task.cat];
-  const done = task.status === 'concluida' || task.status === 'validada' || task.status === 'em-avaliacao';
-  const checklistDone = task.goal?.kind === 'checklist' ? task.goal.items.filter(Boolean).length : 0;
-  const checklistTotal = task.goal?.kind === 'checklist' ? task.goal.items.length : 0;
-
-  const recurLabel = task.recur
-    ? (() => {
-        const key = RECUR_KEY[task.recur];
-        return key ? tRecur(key as Parameters<typeof tRecur>[0]) : task.recur;
-      })()
-    : null;
+export function PublicTaskCard({ task }: { task: ProfileTask }) {
+  const tStatus = useTranslations('status');
+  const cat = CAT_BY_API_KEY[task.category] ?? DODOO_CATEGORIES[0];
+  const sm = TASK_STATUS_META[task.status] ?? TASK_STATUS_META.ACTIVE;
 
   return (
     <div style={{
-      background: '#FFFFFF', borderRadius: 22, padding: 14, display: 'flex', gap: 12,
+      background: 'var(--surface)', borderRadius: 22, padding: 14, display: 'flex', gap: 12,
       boxShadow: '0 1px 0 rgba(31,21,48,0.04), 0 6px 18px rgba(91,63,161,0.06)',
-      border: '1.5px solid #F1ECE0', position: 'relative', overflow: 'hidden',
+      border: '1.5px solid var(--border)', position: 'relative', overflow: 'hidden',
     }}>
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: cat.fg, opacity: 0.85 }} />
       <CategoryBadge cat={cat} size={42} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <div style={{ flex: 1, fontWeight: 800, fontSize: 15, color: '#1F1530', textDecoration: done ? 'line-through' : 'none', opacity: done ? 0.6 : 1, lineHeight: 1.25 }}>
+          <div style={{ flex: 1, fontWeight: 800, fontSize: 15, color: 'var(--dark)', lineHeight: 1.25 }}>
             {task.title}
           </div>
-          <CategoryIcon name="globe" size={13} color="#9A8DBA" />
+          <CategoryIcon name="globe" size={13} color="var(--text-faint)" />
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
-          <StatusPill status={task.status} />
-          <DiffDots diff={task.diff} />
-          {task.type === 'recorrente' && recurLabel && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#5B3FA1', background: '#F4EFFF', padding: '3px 8px', borderRadius: 999 }}>
-              <CategoryIcon name="clock" size={11} color="#5B3FA1" />{recurLabel}
+          <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: 999, background: sm.bg, color: sm.fg, fontSize: 11, fontWeight: 800 }}>
+            {tStatus(sm.labelKey as Parameters<typeof tStatus>[0])}
+          </span>
+          {task.type === 'RECURRING' && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: 'var(--purple)', background: 'var(--purple-bg)', padding: '3px 8px', borderRadius: 999 }}>
+              <CategoryIcon name="clock" size={11} color="var(--purple)" />
+              Recorrente
             </span>
           )}
-          {task.goal?.kind === 'checklist' && (
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#2F7A3F', background: '#E4F4E7', padding: '3px 8px', borderRadius: 999 }}>
-              {checklistDone}/{checklistTotal}
-            </span>
-          )}
-          {task.status === 'em-avaliacao' && (
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#5B3FA1' }}>{task.evals ?? 0}/{task.evalsNeeded ?? 5} avaliações</span>
-          )}
-          {task.status === 'validada' && task.prestige && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 800, color: '#8B6A14' }}>
-              +<CategoryIcon name="star" size={11} color="#5B3FA1" />{task.prestige}
+          {task.goalType !== 'NONE' && task.goalText && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', background: 'var(--surface-alt)', padding: '3px 8px', borderRadius: 999 }}>
+              {task.goalText}
             </span>
           )}
         </div>
-        {task.deadline && (
-          <div style={{ marginTop: 8, fontSize: 12, color: '#7A6E94', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <CategoryIcon name="calendar" size={12} color="#7A6E94" />
-            {task.deadline}
-          </div>
-        )}
       </div>
     </div>
   );

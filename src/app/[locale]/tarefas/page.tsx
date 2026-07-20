@@ -6,6 +6,8 @@ import { useTranslations, useFormatter } from 'next-intl';
 import { WebLayout } from '@/components/layout/web-layout';
 import { TaskCard, TaskCardSkeleton } from '@/components/tasks/task-card';
 import { WebCreatePanel } from '@/components/tasks/create-panel';
+import { WebEditPanel } from '@/components/tasks/edit-panel';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { CategoryIcon } from '@/components/ui/icons';
 import { CoinPill } from '@/components/ui/coin-pill';
 import { useAuthStore } from '@/stores/auth-store';
@@ -24,7 +26,7 @@ function WebStreakBanner({ days }: { days: number }) {
       display: 'flex', alignItems: 'center', gap: 16,
       boxShadow: '0 4px 14px rgba(255,167,0,0.2)',
     }}>
-      <div style={{ width: 44, height: 44, borderRadius: 22, flexShrink: 0, background: '#FFF8E7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 44, height: 44, borderRadius: 22, flexShrink: 0, background: 'rgba(255,248,231,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <CategoryIcon name="flame" size={26} color="#E5650F" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -59,9 +61,11 @@ export default function TarefasPage() {
   const t      = useTranslations('tasks');
   const format = useFormatter();
 
-  const [filter,     setFilter]     = useState<FilterId>('all');
-  const [showCreate, setShowCreate] = useState(false);
-  const [mounted,    setMounted]    = useState(false);
+  const [filter,       setFilter]       = useState<FilterId>('all');
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [editingTask,  setEditingTask]  = useState<Task | null>(null);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+  const [mounted,      setMounted]      = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -70,7 +74,17 @@ export default function TarefasPage() {
   const displayUser = mounted ? user : null;
   const firstName   = displayUser?.name.split(' ')[0] ?? '...';
 
-  const { tasks, isLoading, error, fetchTasks } = useTasksStore();
+  const { tasks, isLoading, error, completing, deleting, fetchTasks, completeTask, deleteTask } = useTasksStore();
+
+  const openCreate = () => { setEditingTask(null); setShowCreate(true); };
+  const openEdit   = (task: Task) => { setShowCreate(false); setEditingTask(task); };
+  const closePanel = () => { setShowCreate(false); setEditingTask(null); };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingTask || !token) return;
+    await deleteTask(deletingTask.id, token);
+    setDeletingTask(null);
+  };
 
   useEffect(() => {
     if (mounted && token) fetchTasks(token);
@@ -90,25 +104,52 @@ export default function TarefasPage() {
     if (id === 'feed')     router.push('feed');
     if (id === 'trophy')   router.push('conquistas');
     if (id === 'settings') router.push('configuracoes');
+    if (id === 'friends')  router.push('amigos');
   };
 
   const dateStr = format.dateTime(new Date(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
+    <>
+    <ConfirmModal
+      open={!!deletingTask}
+      title="Excluir tarefa?"
+      description="Essa ação é permanente e não pode ser desfeita."
+      confirmLabel="Sim, excluir"
+      cancelLabel="Cancelar"
+      danger
+      loading={deletingTask ? (deleting[deletingTask.id] ?? false) : false}
+      onConfirm={handleDeleteConfirm}
+      onCancel={() => setDeletingTask(null)}
+    />
     <WebLayout
       active="list"
       onNav={handleNav}
-      onCreate={() => setShowCreate(true)}
-      rightPanel={showCreate ? <WebCreatePanel onClose={() => setShowCreate(false)} /> : undefined}
+      onCreate={openCreate}
+      rightPanel={
+        showCreate ? (
+          <WebCreatePanel
+            onClose={closePanel}
+            onCreated={() => { closePanel(); if (token) fetchTasks(token); }}
+          />
+        ) : editingTask ? (
+          <WebEditPanel
+            task={editingTask}
+            onClose={closePanel}
+            onSaved={() => { closePanel(); if (token) fetchTasks(token); }}
+            onDeleted={closePanel}
+          />
+        ) : undefined
+      }
       rightWidth={440}
     >
       <div style={{ padding: '36px 40px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 12, color: '#9A8DBA', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-faint)', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 }}>
               {dateStr}
             </div>
-            <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 30, color: '#1F1530', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+            <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 30, color: 'var(--dark)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
               {t('greeting', { name: firstName })}
             </div>
           </div>
@@ -129,8 +170,8 @@ export default function TarefasPage() {
               <button key={f.id} onClick={() => setFilter(f.id)} style={{
                 border: 'none', cursor: 'pointer', padding: '9px 16px', borderRadius: 999,
                 fontWeight: 800, fontSize: 13,
-                background: active ? '#1F1530' : '#FFFFFF', color: active ? '#FFD93D' : '#5B3FA1',
-                boxShadow: active ? 'none' : 'inset 0 0 0 1.5px #F1ECE0',
+                background: active ? 'var(--dark)' : 'var(--surface)', color: active ? 'var(--accent)' : 'var(--purple)',
+                boxShadow: active ? 'none' : 'inset 0 0 0 1.5px var(--border)',
                 fontFamily: 'Nunito, sans-serif',
               }}>{f.label}</button>
             );
@@ -139,10 +180,10 @@ export default function TarefasPage() {
 
         {isLoading ? (
           <>
-            <div style={{ marginBottom: 14, fontSize: 11.5, fontWeight: 800, color: '#9A8DBA', letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.4 }}>
+            <div style={{ marginBottom: 14, fontSize: 11.5, fontWeight: 800, color: 'var(--text-faint)', letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.4 }}>
               &nbsp;
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 460px))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 460px))', gap: 12, alignItems: 'start' }}>
               {Array.from({ length: 4 }).map((_, i) => <TaskCardSkeleton key={i} />)}
             </div>
           </>
@@ -154,7 +195,7 @@ export default function TarefasPage() {
               onClick={() => token && fetchTasks(token)}
               style={{
                 border: 'none', cursor: 'pointer', padding: '10px 24px', borderRadius: 999,
-                fontWeight: 800, fontSize: 13, background: '#1F1530', color: '#FFD93D',
+                fontWeight: 800, fontSize: 13, background: 'var(--dark)', color: 'var(--accent)',
                 fontFamily: 'Nunito, sans-serif',
               }}
             >
@@ -165,10 +206,10 @@ export default function TarefasPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', gap: 14 }}>
             <CategoryIcon name="list" size={48} color="#E5DDF3" />
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 20, color: '#1F1530' }}>
+              <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 20, color: 'var(--dark)' }}>
                 {t('emptyTitle')}
               </div>
-              <div style={{ fontSize: 14, color: '#9A8DBA', marginTop: 4 }}>
+              <div style={{ fontSize: 14, color: 'var(--text-faint)', marginTop: 4 }}>
                 {t('emptyDesc')}
               </div>
             </div>
@@ -177,7 +218,7 @@ export default function TarefasPage() {
                 onClick={() => setShowCreate(true)}
                 style={{
                   border: 'none', cursor: 'pointer', padding: '10px 24px', borderRadius: 999,
-                  fontWeight: 800, fontSize: 13, background: '#1F1530', color: '#FFD93D',
+                  fontWeight: 800, fontSize: 13, background: 'var(--dark)', color: 'var(--accent)',
                   fontFamily: 'Nunito, sans-serif',
                 }}
               >
@@ -187,15 +228,25 @@ export default function TarefasPage() {
           </div>
         ) : (
           <>
-            <div style={{ marginBottom: 14, fontSize: 11.5, fontWeight: 800, color: '#9A8DBA', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+            <div style={{ marginBottom: 14, fontSize: 11.5, fontWeight: 800, color: 'var(--text-faint)', letterSpacing: 0.5, textTransform: 'uppercase' }}>
               {t('count', { count: filtered.length })}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 460px))', gap: 12 }}>
-              {filtered.map(task => <TaskCard key={task.id} task={task} />)}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 460px))', gap: 12, alignItems: 'start' }}>
+              {filtered.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  completing={completing[task.id] ?? false}
+                  onComplete={token ? (cp) => completeTask(task.id, token, cp) : undefined}
+                  onEdit={() => openEdit(task)}
+                  onDelete={() => setDeletingTask(task)}
+                />
+              ))}
             </div>
           </>
         )}
       </div>
     </WebLayout>
+    </>
   );
 }

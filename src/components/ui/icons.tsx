@@ -246,6 +246,58 @@ export function CategoryIcon({ name, size = 22, color = '#1F1530' }: IconProps) 
           <rect x="15" y="3" width="2" height="5" rx="1" fill={color} />
         </svg>
       );
+    case 'phone':
+      return (
+        <svg style={s} viewBox="0 0 24 24">
+          <rect x="7" y="2" width="10" height="20" rx="2.5" fill={color} />
+          <rect x="9" y="18" width="6" height="1.5" rx="0.75" fill="#FFF8E7" />
+        </svg>
+      );
+    case 'monitor':
+      return (
+        <svg style={s} viewBox="0 0 24 24">
+          <rect x="2" y="3" width="20" height="14" rx="2" fill={color} />
+          <rect x="8" y="19" width="8" height="1.5" rx="0.75" fill={color} />
+          <rect x="10" y="17" width="4" height="2" fill={color} />
+          <rect x="3" y="4" width="18" height="11" rx="1" fill="#FFF8E7" opacity="0.25" />
+        </svg>
+      );
+    case 'broadcast':
+      return (
+        <svg style={s} viewBox="0 0 24 24">
+          <path d="M4.5 12a7.5 7.5 0 0 1 15 0" {...stroke} />
+          <path d="M7.5 12a4.5 4.5 0 0 1 9 0" {...stroke} />
+          <circle cx="12" cy="12" r="1.5" fill={color} stroke="none" />
+        </svg>
+      );
+    case 'pen':
+      return (
+        <svg style={s} viewBox="0 0 24 24">
+          <path d="M16 3l5 5L7 22H2v-5L16 3Z" {...stroke} />
+          <path d="M14 5l5 5" {...stroke} />
+        </svg>
+      );
+    case 'trash':
+      return (
+        <svg style={s} viewBox="0 0 24 24">
+          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" {...stroke} />
+          <path d="M10 11v6M14 11v6" {...stroke} />
+        </svg>
+      );
+    case 'download':
+      return (
+        <svg style={s} viewBox="0 0 24 24">
+          <path d="M12 4v12M8 13l4 4 4-4" {...stroke} />
+          <path d="M4 20h16" {...stroke} />
+        </svg>
+      );
+    case 'shield':
+      return (
+        <svg style={s} viewBox="0 0 24 24">
+          <path d="M12 3L4 7v5c0 5 3.5 9 8 10 4.5-1 8-5 8-10V7L12 3Z" fill={color} />
+          <path d="M9 12l2 2 4-4" stroke="#FFF8E7" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
     default:
       return null;
   }

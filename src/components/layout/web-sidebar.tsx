@@ -1,9 +1,13 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import { CategoryIcon } from '@/components/ui/icons';
 import { DodooMascot } from '@/components/ui/logo';
+import { featureFlags } from '@/lib/feature-flags';
+import { useAuthStore } from '@/stores/auth-store';
+import { useFriendshipsStore } from '@/stores/friendships-store';
 import { US, BR, ES } from 'country-flag-icons/react/3x2';
 
 const LOCALES = [
@@ -12,7 +16,7 @@ const LOCALES = [
   { code: 'es-ES', flag: <ES title="Spain" className="h-5 w-5" /> },
 ] as const;
 
-type NavId = 'list' | 'feed' | 'trophy' | 'settings';
+type NavId = 'list' | 'feed' | 'trophy' | 'friends' | 'settings';
 
 interface WebSidebarProps {
   active: NavId | string;
@@ -21,16 +25,31 @@ interface WebSidebarProps {
 }
 
 export function WebSidebar({ active, onNav, onCreate }: WebSidebarProps) {
-  const t = useTranslations('nav');
-  const locale = useLocale();
+  const t        = useTranslations('nav');
+  const locale   = useLocale();
   const pathname = usePathname();
-  const router = useRouter();
+  const router   = useRouter();
+
+  // Defer reading the store until after hydration to avoid SSR mismatch
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const user  = useAuthStore(s => s.user);
+  const token = useAuthStore(s => s.token);
+  const displayUser = mounted ? user : null;
+
+  const { pending, fetchPending } = useFriendshipsStore();
+  const pendingReceivedCount = mounted ? pending.received.length : 0;
+
+  useEffect(() => {
+    if (mounted && token) fetchPending(token);
+  }, [mounted, token, fetchPending]);
 
   const NAV_ITEMS: { id: NavId; icon: string; label: string }[] = [
-    { id: 'list', icon: 'home', label: t('today') },
-    { id: 'feed', icon: 'eye', label: t('evaluate') },
-    { id: 'trophy', icon: 'trophy', label: t('achievements') },
-    { id: 'settings', icon: 'user', label: t('profile') },
+    { id: 'list',     icon: 'home',   label: t('today')        },
+    { id: 'feed',     icon: 'eye',    label: t('evaluate')     },
+    { id: 'trophy',   icon: 'trophy', label: t('achievements') },
+    { id: 'friends',  icon: 'people', label: t('friends')      },
+    { id: 'settings', icon: 'user',   label: t('profile')      },
   ];
 
   return (
@@ -38,7 +57,7 @@ export function WebSidebar({ active, onNav, onCreate }: WebSidebarProps) {
       style={{
         width: 240,
         height: '100%',
-        background: '#1F1530',
+        background: 'var(--sidebar-bg)',
         display: 'flex',
         flexDirection: 'column',
         padding: '26px 0',
@@ -97,7 +116,12 @@ export function WebSidebar({ active, onNav, onCreate }: WebSidebarProps) {
       </div>
 
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 8px', gap: 2 }}>
-        {NAV_ITEMS.map((item) => {
+        {(() => {
+          const comingSoonIds = new Set([
+            ...(featureFlags.feedComingSoon         ? ['feed']   : []),
+            ...(featureFlags.achievementsComingSoon ? ['trophy'] : []),
+          ]);
+          return NAV_ITEMS.map((item) => {
           const on = active === item.id;
           return (
             <button
@@ -138,28 +162,50 @@ export function WebSidebar({ active, onNav, onCreate }: WebSidebarProps) {
                 />
               </span>
               {item.label}
+              {item.id === 'friends' && pendingReceivedCount > 0 && (
+                <span style={{
+                  marginLeft: 'auto',
+                  minWidth: 18, height: 18, borderRadius: 9,
+                  background: '#C0392B', color: '#FFF',
+                  fontSize: 10.5, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 5px', flexShrink: 0,
+                }}>
+                  {pendingReceivedCount}
+                </span>
+              )}
+              {comingSoonIds.has(item.id) && (
+                <span style={{
+                  marginLeft: 'auto',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  fontFamily: 'Fredoka, sans-serif',
+                  letterSpacing: 0.4,
+                  color: '#FFD93D',
+                  background: 'rgba(255,217,61,0.12)',
+                  border: '1px solid rgba(255,217,61,0.22)',
+                  borderRadius: 6,
+                  padding: '2px 7px',
+                  flexShrink: 0,
+                }}>
+                  {t('comingSoon')}
+                </span>
+              )}
             </button>
           );
-        })}
+        });
+      })()}
       </nav>
 
-      <div style={{ padding: '14px 12px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ padding: '14px 12px 0', borderTop: '1px solid var(--sidebar-border)' }}>
         <div style={{ display: 'flex', gap: 14, padding: '0 4px', marginBottom: 12 }}>
           {[
-            { icon: 'coin', val: '240', clr: '#FFD93D' },
-            { icon: 'star', val: '87', clr: '#9D81E0' },
-            { icon: 'flame', val: '7d', clr: '#FF9757' },
+            { icon: 'coin',  val: displayUser ? String(displayUser.commonCoins) : '—', clr: '#FFD93D' },
+            { icon: 'star',  val: displayUser ? String(displayUser.prestige)    : '—', clr: '#9D81E0' },
           ].map((s) => (
             <div key={s.icon} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <CategoryIcon name={s.icon} size={13} color={s.clr} />
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: s.clr,
-                  fontFamily: 'Fredoka, sans-serif',
-                }}
-              >
+              <span style={{ fontSize: 12, fontWeight: 800, color: s.clr, fontFamily: 'Fredoka, sans-serif' }}>
                 {s.val}
               </span>
             </div>
@@ -193,11 +239,11 @@ export function WebSidebar({ active, onNav, onCreate }: WebSidebarProps) {
             <DodooMascot size={27} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: '#FFF8E7', lineHeight: 1.2 }}>
-              Lia Mendes
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: '#FFF8E7', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {displayUser?.name ?? '—'}
             </div>
             <div style={{ fontSize: 10.5, color: 'rgba(255,248,231,0.38)', fontWeight: 700 }}>
-              @lia.m · nv 12
+              {displayUser ? `@${displayUser.username}` : '—'}
             </div>
           </div>
         </div>

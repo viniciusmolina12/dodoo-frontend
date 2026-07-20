@@ -4,6 +4,8 @@ import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { QueryProvider } from '@/providers/query-provider';
+import { ThemeProvider } from '@/providers/theme-provider';
+import { AuthGuard } from '@/providers/auth-guard';
 
 export const metadata: Metadata = {
   title: 'Dodoo — Faz, mostra e ganha',
@@ -26,7 +28,11 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   return (
     <NextIntlClientProvider messages={messages}>
-      <QueryProvider>{children}</QueryProvider>
+      <QueryProvider>
+        <ThemeProvider>
+          <AuthGuard>{children}</AuthGuard>
+        </ThemeProvider>
+      </QueryProvider>
     </NextIntlClientProvider>
   );
 }

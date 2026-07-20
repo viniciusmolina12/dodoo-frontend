@@ -15,16 +15,16 @@ export function WebLayout({ active, onNav, onCreate, children, rightPanel, right
   return (
     <div className="dodoo-app" style={{
       width: '100%', height: '100vh',
-      display: 'flex', overflow: 'hidden', background: '#FFF8E7',
+      display: 'flex', overflow: 'hidden', background: 'var(--bg)',
     }}>
       <WebSidebar active={active} onNav={onNav} onCreate={onCreate} />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, overflow: 'auto' }}>{children}</div>
         {rightPanel && (
-          <div style={{
+          <div className="panel-slide-in" style={{
             width: rightWidth, flexShrink: 0,
-            borderLeft: '1.5px solid #EDE7D6',
-            background: '#FFFFFF', overflow: 'auto',
+            borderLeft: '1.5px solid var(--border)',
+            background: 'var(--surface)', overflow: 'auto',
           }}>
             {rightPanel}
           </div>

@@ -54,8 +54,76 @@ export interface Task {
   updatedAt: string;
 }
 
-export async function getTasks(token: string): Promise<Task[]> {
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.ok) return res.json() as Promise<T>;
+  let body: { message?: string | string[] } = {};
+  try { body = await res.json(); } catch { /* no-op */ }
+  const message = Array.isArray(body.message)
+    ? body.message.join(', ')
+    : (body.message ?? 'Erro desconhecido');
+  throw new ApiError(res.status, message);
+}
+
+export interface UpdateTaskPayload {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  declaredDifficulty?: Difficulty;
+  privacy?: TaskPrivacy;
+  deadline?: string | null;
+}
+
+export async function updateTask(taskId: string, payload: UpdateTaskPayload, token: string): Promise<Task> {
+  const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Task>(res);
+}
+
+export interface CreateTaskPayload {
+  title: string;
+  category: TaskCategory;
+  type: TaskType;
+  recurrence?: RecurrenceType;
+  startDate?: string;
+  privacy?: TaskPrivacy;
+  goalType?: GoalType;
+  goalText?: string;
+  goalChecklist?: string[];
+  description?: string;
+  tags?: string[];
+  declaredDifficulty?: Difficulty;
+  deadline?: string;
+}
+
+export async function activateTask(taskId: string, token: string): Promise<{ task: Task; instance: TaskInstance }> {
+  const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/activate`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<{ task: Task; instance: TaskInstance }>(res);
+}
+
+export async function createTask(payload: CreateTaskPayload, token: string): Promise<Task> {
   const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/tasks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Task>(res);
+}
+
+export async function deleteTask(taskId: string, token: string): Promise<void> {
+  const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/tasks/${taskId}`, {
+    method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
@@ -66,5 +134,27 @@ export async function getTasks(token: string): Promise<Task[]> {
       : (body.message ?? 'Erro desconhecido');
     throw new ApiError(res.status, message);
   }
-  return res.json() as Promise<Task[]>;
+}
+
+export async function getTasks(token: string): Promise<Task[]> {
+  const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/tasks`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<Task[]>(res);
+}
+
+export async function completeTask(
+  taskId: string,
+  token: string,
+  checklistProgress?: Record<string, boolean>,
+): Promise<TaskInstance> {
+  const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/complete`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(checklistProgress ? { checklistProgress } : {}),
+  });
+  return handleResponse<TaskInstance>(res);
 }

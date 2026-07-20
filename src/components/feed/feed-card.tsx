@@ -1,299 +1,338 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { CategoryIcon } from '@/components/ui/icons';
-import { CategoryBadge } from '@/components/ui/icons';
-import { CoinPill } from '@/components/ui/coin-pill';
-import { CAT_BY_ID } from '@/data/categories';
-import { DIFF_META } from '@/data/tasks';
-import type { FeedTask, Attachment } from '@/data/feed';
+import { CAT_BY_API_KEY, DODOO_CATEGORIES } from '@/data/categories';
+import { submitEvaluation, type FeedItem } from '@/lib/api/feed';
 
-function Avatar({ name, color, fg, size = 36 }: { name: string; color: string; fg: string; size?: number }) {
-  const initial = (name || '?').trim()[0]?.toUpperCase() || '?';
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: size / 2,
-      background: color, color: fg, flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: size * 0.45,
-      boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.06)',
-    }}>{initial}</div>
-  );
-}
-
-const TONES: Record<string, [string, string]> = {
-  mint:   ['#B8E6D4', '#6BCFA5'],
-  peach:  ['#FFD9C2', '#FFB088'],
-  sky:    ['#C2DFFF', '#88AEDD'],
-  rose:   ['#FFD2E0', '#E289B0'],
-  lemon:  ['#FFEFAA', '#FFD060'],
-  lilac:  ['#DDD0FF', '#A88FE3'],
-  dusk:   ['#7857C8', '#3A2868'],
-  forest: ['#7BB89D', '#2F6B4F'],
+const DIFF_KEY: Record<string, 'facil' | 'medio' | 'dificil'> = {
+  EASY: 'facil', MEDIUM: 'medio', HARD: 'dificil',
 };
 
-function AttachmentImage({ tone = 'mint', caption }: { tone?: string; caption?: string; motif?: string }) {
-  const [a, b] = TONES[tone] ?? TONES.mint;
-  return (
-    <div style={{
-      flex: 1, aspectRatio: '1', borderRadius: 14, minWidth: 0,
-      background: `linear-gradient(135deg, ${a} 0%, ${b} 100%)`,
-      position: 'relative', overflow: 'hidden',
-      boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.35)',
-    }}>
-      <div style={{ position: 'absolute', top: '15%', left: '12%', width: '45%', aspectRatio: '1', borderRadius: '50%', background: 'rgba(255,255,255,0.25)' }} />
-      {caption && (
-        <div style={{
-          position: 'absolute', bottom: 5, left: 5, right: 5,
-          padding: '3px 6px', borderRadius: 6,
-          background: 'rgba(31,21,48,0.6)', color: '#FFF8E7',
-          fontSize: 9.5, fontFamily: 'monospace', fontWeight: 700,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>📷 {caption}</div>
-      )}
-    </div>
-  );
-}
-
-function AttachmentDoc({ name, size, ext = 'PDF' }: { name: string; size?: string; ext?: string }) {
-  const colors: Record<string, string> = { PDF: '#E0245E', DOC: '#2E5BB0', XLS: '#2F7A3F' };
-  return (
-    <div style={{
-      flex: 1, aspectRatio: '1', borderRadius: 14, background: '#FFF8E7',
-      boxShadow: 'inset 0 0 0 1.5px #F1ECE0', minWidth: 0,
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-      padding: 10,
-    }}>
-      <div style={{
-        width: 30, height: 36, borderRadius: 4,
-        background: colors[ext] ?? '#5B3FA1', color: '#FFF8E7',
-        fontSize: 9, fontWeight: 800, fontFamily: 'Fredoka, sans-serif',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>{ext}</div>
-      <div>
-        <div style={{ fontSize: 10.5, fontWeight: 800, color: '#1F1530', lineHeight: 1.15, marginBottom: 2 }}>{name}</div>
-        {size && <div style={{ fontSize: 9, color: '#9A8DBA', fontFamily: 'monospace' }}>{size}</div>}
-      </div>
-    </div>
-  );
-}
-
-function AttachmentText({ text }: { text: string }) {
-  return (
-    <div style={{
-      flex: 1, aspectRatio: '1', borderRadius: 14, minWidth: 0,
-      background: 'linear-gradient(135deg, #FFF1B5 0%, #FFE08A 100%)',
-      boxShadow: 'inset 0 0 0 1.5px rgba(229,184,0,0.3)',
-      padding: 10, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-    }}>
-      <div style={{
-        fontFamily: 'Fredoka, sans-serif', fontWeight: 500, fontSize: 11,
-        color: '#1F1530', lineHeight: 1.3,
-        display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-      } as React.CSSProperties}>"{text}"</div>
-      <div style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 700, color: '#8B6A14' }}>NOTA</div>
-    </div>
-  );
-}
-
-function AttachmentRow({ items }: { items: Attachment[] }) {
-  return (
-    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-      {items.slice(0, 5).map((a, i) => {
-        if (a.kind === 'image') return <AttachmentImage key={i} tone={a.tone} caption={a.caption} motif={a.motif} />;
-        if (a.kind === 'doc')   return <AttachmentDoc   key={i} name={a.name} size={a.size} ext={a.ext} />;
-        if (a.kind === 'text')  return <AttachmentText  key={i} text={a.text} />;
-        return null;
-      })}
-    </div>
-  );
-}
-
-function RatingDots({ value, onChange, max = 5 }: { value: number; onChange: (v: number) => void; max?: number }) {
-  return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {Array.from({ length: max }).map((_, i) => {
-        const filled = i < value;
-        return (
-          <button key={i} onClick={() => onChange(i + 1)} style={{
-            border: 'none', cursor: 'pointer', padding: 0,
-            width: 30, height: 30, borderRadius: 15,
-            background: filled ? '#FFD93D' : '#FFFFFF',
-            boxShadow: filled ? 'inset 0 -2px 0 rgba(0,0,0,0.08), 0 2px 4px rgba(255,167,0,0.25)' : 'inset 0 0 0 2px #F1ECE0',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {filled && <CategoryIcon name="star" size={14} color="#1F1530" />}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function DifficultyRel({ value, onChange, t }: { value: string | null; onChange: (v: string) => void; t: ReturnType<typeof useTranslations> }) {
-  const opts = [
-    { v: 'easier', label: t('easier'), tone: '#D4F0D8', fg: '#2F7A3F' },
-    { v: 'same',   label: t('same'),   tone: '#FFF1B5', fg: '#8B6A14' },
-    { v: 'harder', label: t('harder'), tone: '#FFD9D2', fg: '#C0392B' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {opts.map(o => {
-        const active = value === o.v;
-        return (
-          <button key={o.v} onClick={() => onChange(o.v)} style={{
-            flex: 1, border: 'none', cursor: 'pointer',
-            padding: '9px 4px', borderRadius: 12,
-            background: active ? o.tone : '#FFFFFF',
-            color: active ? o.fg : '#9A8DBA',
-            boxShadow: active ? `inset 0 0 0 2px ${o.fg}` : 'inset 0 0 0 1.5px #F1ECE0',
-            fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 12,
-          }}>{o.label}</button>
-        );
-      })}
-    </div>
-  );
-}
-
-function EvalRow({ label, hint, children, last }: { label: string; hint?: string; children: React.ReactNode; last?: boolean }) {
-  return (
-    <div style={{ paddingBottom: last ? 0 : 12, marginBottom: last ? 0 : 12, borderBottom: last ? 'none' : '1.5px dashed rgba(91,63,161,0.12)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 14, color: '#1F1530' }}>{label}</div>
-        {hint && <div style={{ fontSize: 10.5, color: '#9A8DBA', fontWeight: 700 }}>{hint}</div>}
-      </div>
-      {children}
-    </div>
-  );
+function timeAgo(dateStr: string, locale: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.max(0, Math.floor(diffMs / 60000));
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  if (mins < 60) return rtf.format(-mins, 'minute');
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return rtf.format(-hours, 'hour');
+  return rtf.format(-Math.floor(hours / 24), 'day');
 }
 
 interface FeedCardProps {
-  task: FeedTask;
-  onSubmit?: (id: string, data: unknown) => void;
-  submitted?: boolean;
-  onUserClick?: (name: string) => void;
+  item: FeedItem;
+  token: string;
+  onEvaluated: () => void;
+  onSkip: () => void;
 }
 
-export function FeedCard({ task, onSubmit, submitted, onUserClick }: FeedCardProps) {
+export function FeedCard({ item, token, onEvaluated, onSkip }: FeedCardProps) {
   const t = useTranslations('feed');
   const tDiff = useTranslations('diff');
-  const cat = CAT_BY_ID[task.cat];
-  const [effort, setEffort] = useState(0);
-  const [difficulty, setDifficulty] = useState<string | null>(null);
-  const [result, setResult] = useState(0);
-  const hasGoal = !!task.goal;
-  const checklistDone = task.goal?.kind === 'checklist' ? task.goal.items.filter(Boolean).length : 0;
-  const checklistTotal = task.goal?.kind === 'checklist' ? task.goal.items.length : 0;
-  const diffMeta = DIFF_META[task.diff as keyof typeof DIFF_META];
-  const diffLabel = diffMeta ? tDiff(task.diff as Parameters<typeof tDiff>[0]) : task.diff;
-  const ready = effort > 0 && difficulty !== null && (!hasGoal || result > 0);
+  const locale = useLocale();
+
+  const [score, setScore] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cat = CAT_BY_API_KEY[item.task.category] ?? DODOO_CATEGORIES[0];
+  const hue = [...item.task.owner.username].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+  const diffKey = item.task.declaredDifficulty ? DIFF_KEY[item.task.declaredDifficulty] : null;
+
+  const hasGoal =
+    !!item.task.goalText ||
+    (Array.isArray(item.task.goalChecklist) && item.task.goalChecklist.length > 0);
+
+  const handleSubmit = async () => {
+    if (score === 0 || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await submitEvaluation(item.taskId, item.instanceId, score, comment, token);
+      onEvaluated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao enviar avaliação');
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div style={{
-      background: '#FFFFFF', borderRadius: 24, padding: 16, marginBottom: 12,
-      boxShadow: '0 1px 0 rgba(31,21,48,0.04), 0 6px 18px rgba(91,63,161,0.06)',
-      border: '1.5px solid #F1ECE0',
-      opacity: submitted ? 0.65 : 1,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button
-          onClick={() => onUserClick?.(task.user.name)}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, textAlign: 'left' }}
-        >
-          <Avatar name={task.user.name} color={task.user.color} fg={task.user.fg} size={38} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 14, color: '#1F1530', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              {task.user.name}
-              <CategoryIcon name="chevron-r" size={12} color="#C7BDE6" />
-            </div>
-            <div style={{ fontSize: 11.5, color: '#9A8DBA', fontWeight: 700 }}>{t('completed', { time: task.completedAt })}</div>
-          </div>
-        </button>
-        {cat && <CategoryBadge cat={cat} size={34} />}
-      </div>
+    <div
+      className="rounded-2xl overflow-hidden mb-4"
+      style={{
+        background: 'var(--surface)',
+        border: '1.5px solid var(--border)',
+        boxShadow: '0 1px 0 rgba(0,0,0,0.04), 0 6px 18px rgba(0,0,0,0.06)',
+      }}
+    >
+      {/* Category accent */}
+      <div className="h-1" style={{ background: cat.fg }} />
 
-      <div style={{ marginTop: 12 }}>
-        <div style={{ fontFamily: 'Fredoka, sans-serif', fontWeight: 500, fontSize: 17, color: '#1F1530', lineHeight: 1.25 }}>
-          {task.title}
+      <div className="p-5">
+        {/* User + time */}
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+            style={{
+              background: `hsl(${hue},60%,84%)`,
+              color: `hsl(${hue},50%,35%)`,
+              fontFamily: 'Fredoka, sans-serif',
+            }}
+          >
+            {item.task.owner.username[0].toUpperCase()}
+          </div>
+          <div className="text-sm">
+            <span className="font-extrabold" style={{ color: 'var(--dark)' }}>
+              @{item.task.owner.username}
+            </span>
+            <span className="font-bold" style={{ color: 'var(--text-faint)' }}>
+              {' · '}{t('completed', { time: timeAgo(item.completedAt, locale) })}
+            </span>
+          </div>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 11.5, fontWeight: 800, color: '#5B3FA1' }}>{t('declared', { diff: diffLabel })}</span>
-          {task.goal?.kind === 'checklist' && (
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#2F7A3F', background: '#E4F4E7', padding: '3px 8px', borderRadius: 999 }}>
-              {t('doneItems', { done: checklistDone, total: checklistTotal })}
+
+        {/* Title */}
+        <h2
+          className="text-xl font-semibold mb-2 leading-tight"
+          style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--dark)' }}
+        >
+          {item.task.title}
+        </h2>
+
+        {/* Badges */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span
+            className="text-xs font-extrabold px-2.5 py-1 rounded-full"
+            style={{ background: cat.bg, color: cat.fg }}
+          >
+            {cat.name}
+          </span>
+          {diffKey && (
+            <span
+              className="text-xs font-extrabold px-2.5 py-1 rounded-full"
+              style={{ background: 'var(--purple-bg)', color: 'var(--purple)' }}
+            >
+              {t('declared', { diff: tDiff(diffKey) })}
             </span>
           )}
         </div>
-      </div>
 
-      {task.goal?.kind === 'texto' && (
-        <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: '#FAF7EE', boxShadow: 'inset 0 0 0 1.5px #F1ECE0', fontSize: 12.5, color: '#5B3FA1', fontWeight: 700 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#9A8DBA', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 3 }}>{t('goalLabel')}</div>
-          {task.goal.text}
-        </div>
-      )}
-
-      {task.note && (
-        <div style={{ marginTop: 8, fontSize: 13, color: '#1F1530', lineHeight: 1.4, fontWeight: 600 }}>{task.note}</div>
-      )}
-
-      {task.attachments && task.attachments.length > 0 && <AttachmentRow items={task.attachments} />}
-
-      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderTop: '1.5px dashed #F1ECE0' }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: '#9A8DBA' }}>
-          {t('evalsCollected', { done: task.evals, needed: task.evalsNeeded })}
-        </div>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#8B6A14' }}>
-          {t('youEarn')} <CoinPill amount={2} kind="common" />
-        </div>
-      </div>
-
-      {submitted ? (
-        <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 16, background: '#D4F0D8', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 14, background: '#2F7A3F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <CategoryIcon name="check" size={16} color="#FFF8E7" />
+        {/* Goal — cat.bg is always a light pastel, so text stays #1F1530 for contrast */}
+        {hasGoal && (
+          <div className="rounded-xl p-3 mb-3" style={{ background: cat.bg }}>
+            <div
+              className="text-[10px] font-extrabold uppercase tracking-wider mb-1.5"
+              style={{ color: cat.fg }}
+            >
+              {t('goalLabel')}
+            </div>
+            {item.task.goalText && (
+              <p className="text-sm font-bold" style={{ color: '#1F1530' }}>
+                {item.task.goalText}
+              </p>
+            )}
+            {Array.isArray(item.task.goalChecklist) && (
+              <ul className="space-y-1">
+                {item.task.goalChecklist.map((text, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm font-bold" style={{ color: '#1F1530' }}>
+                    <span className="w-3.5 h-3.5 rounded-full border-2 shrink-0" style={{ borderColor: cat.fg }} />
+                    {text}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#2F7A3F' }}>{t('submittedTitle')}</div>
-            <div style={{ fontSize: 11, color: '#2F7A3F', fontWeight: 700 }}>{t('submittedCoins')}</div>
+        )}
+
+        {/* Description */}
+        {item.task.description && (
+          <p className="text-sm font-semibold mb-3 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            {item.task.description}
+          </p>
+        )}
+
+        {/* Eval count + reward */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '6px 0',
+            borderTop: '1.5px dashed var(--border)',
+            marginTop: 12,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-faint)' }}>
+            {t('evalsCollected', { done: item.evaluationCount, needed: item.evaluationsNeeded })}
           </div>
-        </div>
-      ) : (
-        <div style={{ marginTop: 10, padding: 14, borderRadius: 18, background: '#FAF7EE', boxShadow: 'inset 0 0 0 1.5px #F1ECE0' }}>
-          <EvalRow label={t('effort')} hint={t('effortHint')}>
-            <RatingDots value={effort} onChange={setEffort} />
-          </EvalRow>
-          <EvalRow label={t('difficulty')} hint={t('diffHint', { diff: diffLabel.toLowerCase() })}>
-            <DifficultyRel value={difficulty} onChange={setDifficulty} t={t} />
-          </EvalRow>
-          {hasGoal && (
-            <EvalRow label={t('result')} hint={t('resultHint')} last>
-              <RatingDots value={result} onChange={setResult} />
-            </EvalRow>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <button onClick={() => onSubmit?.(task.id, 'skip')} style={{
-              border: 'none', cursor: 'pointer', padding: '12px 14px', borderRadius: 14,
-              background: 'transparent', color: '#9A8DBA',
-              fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13,
-            }}>{t('skip')}</button>
-            <button
-              disabled={!ready}
-              onClick={() => onSubmit?.(task.id, { effort, difficulty, result })}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#8B6A14' }}>
+            {t('youEarn')}
+            <span
               style={{
-                flex: 1, border: 'none', cursor: ready ? 'pointer' : 'not-allowed',
-                padding: '12px 14px', borderRadius: 14,
-                background: ready ? '#FFD93D' : '#F1ECE0',
-                color: ready ? '#1F1530' : '#9A8DBA',
-                fontFamily: 'Fredoka, sans-serif', fontWeight: 600, fontSize: 15,
-                boxShadow: ready ? '0 4px 12px rgba(255,167,0,0.35), inset 0 -2px 0 rgba(0,0,0,0.08)' : 'none',
-              }}>
-              {t('submitEval')}
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+                background: 'rgba(255,185,0,0.18)',
+                borderRadius: 999,
+                padding: '2px 7px 2px 4px',
+              }}
+            >
+              <CategoryIcon name="coin" size={13} color="#FFB627" />
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#8B6A14' }}>+5</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Evaluation form */}
+        <div
+          style={{
+            marginTop: 10,
+            padding: 14,
+            borderRadius: 18,
+            background: 'var(--surface-alt)',
+            boxShadow: 'inset 0 0 0 1.5px var(--border)',
+          }}
+        >
+          {/* Effort */}
+          <div
+            style={{
+              paddingBottom: 12,
+              marginBottom: 12,
+              borderBottom: '1.5px dashed var(--border)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'Fredoka, sans-serif',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  color: 'var(--dark)',
+                }}
+              >
+                {t('effort')}
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-faint)', fontWeight: 700 }}>
+                {t('effortHint')}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[1, 2, 3, 4, 5].map(i => {
+                const filled = i <= score;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setScore(score === i ? 0 : i)}
+                    style={{
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      width: 30,
+                      height: 30,
+                      borderRadius: 15,
+                      background: filled ? 'var(--accent)' : 'var(--surface)',
+                      boxShadow: filled
+                        ? 'inset 0 -2px 0 rgba(0,0,0,0.08), 0 2px 4px rgba(255,167,0,0.25)'
+                        : 'inset 0 0 0 2px var(--border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {filled && <CategoryIcon name="star" size={14} color="#1F1530" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Comment */}
+          <div style={{ marginBottom: 14 }}>
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder={t('commentPlaceholder')}
+              rows={2}
+              style={{
+                fontFamily: 'Nunito, sans-serif',
+                width: '100%',
+                fontSize: 13,
+                borderRadius: 12,
+                border: '1.5px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--dark)',
+                padding: '8px 12px',
+                resize: 'none',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {error && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#C0392B', marginBottom: 8 }}>
+              {error}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={onSkip}
+              disabled={submitting}
+              style={{
+                border: 'none',
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                padding: '12px 14px',
+                borderRadius: 14,
+                background: 'transparent',
+                color: 'var(--text-faint)',
+                fontFamily: 'Nunito, sans-serif',
+                fontWeight: 800,
+                fontSize: 13,
+                opacity: submitting ? 0.5 : 1,
+              }}
+            >
+              {t('skip')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={score === 0 || submitting}
+              style={{
+                flex: 1,
+                border: 'none',
+                cursor: score > 0 && !submitting ? 'pointer' : 'not-allowed',
+                padding: '12px 14px',
+                borderRadius: 14,
+                background: score > 0 ? 'var(--accent)' : 'var(--border)',
+                color: score > 0 ? '#1F1530' : 'var(--text-faint)',
+                fontFamily: 'Fredoka, sans-serif',
+                fontWeight: 600,
+                fontSize: 15,
+                boxShadow:
+                  score > 0
+                    ? '0 4px 12px rgba(255,167,0,0.35), inset 0 -2px 0 rgba(0,0,0,0.08)'
+                    : 'none',
+                opacity: submitting ? 0.7 : 1,
+              }}
+            >
+              {submitting ? '…' : t('submitEval')}
             </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

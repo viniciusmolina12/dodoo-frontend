@@ -3,22 +3,44 @@
 :root {
   --bg: #FFF8E7;
   --surface: #FFFFFF;
+  --surface-alt: #FAF7EE;
   --border: #F1ECE0;
   --purple: #5B3FA1;
   --purple-light: #7857C8;
+  --purple-bg: #EFE6FF;
   --accent: #FFD93D;
   --dark: #1F1530;
   --text-muted: #7A6E94;
   --text-faint: #9A8DBA;
+  --sidebar-bg: #1F1530;
+  --sidebar-border: rgba(255,255,255,0.06);
+}
+
+[data-theme="dark"] {
+  --bg: #110C1F;
+  --surface: #1C1335;
+  --surface-alt: #211840;
+  --border: #2B1E4A;
+  --purple: #9B7DE8;
+  --purple-light: #B89EF0;
+  --purple-bg: #271B4D;
+  --accent: #FFD93D;
+  --dark: #EDE7FF;
+  --text-muted: #9A8DBA;
+  --text-faint: #6B5F8A;
+  --sidebar-bg: #0E0819;
+  --sidebar-border: rgba(255,255,255,0.08);
 }
 
 @theme inline {
   --color-background: var(--bg);
   --color-foreground: var(--dark);
   --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
   --color-border: var(--border);
   --color-purple: var(--purple);
   --color-purple-light: var(--purple-light);
+  --color-purple-bg: var(--purple-bg);
   --color-accent: var(--accent);
   --color-muted: var(--text-muted);
   --color-faint: var(--text-faint);
@@ -43,11 +65,29 @@ body {
 
 input, textarea, button, select {
   font-family: inherit;
+  color: inherit;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.7);
 }
 
 ::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.panel-slide-in {
+  animation: slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes skeleton-pulse {
@@ -57,6 +97,6 @@ input, textarea, button, select {
 
 .skeleton {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
-  background: #E8E2F4;
+  background: var(--purple-bg);
   border-radius: 6px;
 }

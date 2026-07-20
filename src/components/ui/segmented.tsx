@@ -18,7 +18,7 @@ export function Segmented({ options, value, onChange }: SegmentedProps) {
   return (
     <div style={{
       display: 'inline-flex', padding: 4, borderRadius: 14,
-      background: '#F4EFFF', gap: 2,
+      background: 'var(--purple-bg)', gap: 2,
     }}>
       {options.map(o => {
         const active = o.value === value;
@@ -29,8 +29,8 @@ export function Segmented({ options, value, onChange }: SegmentedProps) {
             style={{
               border: 'none', cursor: 'pointer',
               padding: '7px 16px', borderRadius: 11,
-              background: active ? '#FFFFFF' : 'transparent',
-              color: active ? '#5B3FA1' : '#9A8DBA',
+              background: active ? 'var(--surface)' : 'transparent',
+              color: active ? 'var(--purple)' : 'var(--text-faint)',
               fontFamily: 'Nunito, sans-serif', fontWeight: 800, fontSize: 13,
               display: 'flex', alignItems: 'center', gap: 6,
               boxShadow: active ? '0 1px 3px rgba(91,63,161,0.12)' : 'none',
